@@ -39,7 +39,14 @@ def evaluate_ranking(
 
     # Order the page
     ordered_itemids = order_page_func(
-        itemids, pwt, vms, es, maxvals, pagelen, debug
+        itemids=itemids,
+        pwt=pwt,
+        vms=vms,
+        es=es,
+        maxvals=maxvals,
+        iwt=iwt,
+        pagelen=pagelen,
+        debug=debug,
     )
 
     if debug:

@@ -14,11 +14,7 @@ def run_evals(
     pagelen: int,
     debug: bool = False,
 ) -> np.ndarray:
-    order_page_funcs = [
-        # order_page,
-        # order_page_vm,
-        order_page_intents
-    ]
+    order_page_funcs = [order_page, order_page_vm, order_page_intents]
     scores_array = np.zeros((num_evals, len(order_page_funcs)), dtype=float)
     for i in range(num_evals):
         # Generate data
@@ -62,11 +58,11 @@ def run_evals(
 
 
 mean_scores = run_evals(
-    num_evals=1,
-    num_intents=3,
-    num_candidates=10,
-    pagelen=2,
-    debug=True,
+    num_evals=10000,
+    num_intents=5,
+    num_candidates=200,
+    pagelen=10,
+    debug=False,
 )
 # Divide all scores by the first score (baseline)
 increase_from_baseline = mean_scores / mean_scores[0]

@@ -45,15 +45,17 @@ def order_page_intents(
     # Normalize the intent weights to probabilities
     cwt = pwt / np.sum(pwt)
 
+    # Since we are changing es and vms in the process, we will make a copy
+    es_a = np.array(es)  # Shape [N, V]
+    vms_a = np.array(vms)
+
     # For each intent, compute the sum of the maximum pagelen es values
     # of that intent.
-    es_array = np.array(es)  # Shape [N, V]
     es_headroom = np.sum(
-        np.sort(es_array, axis=0)[-pagelen:, :], axis=0
+        np.sort(es_a, axis=0)[-pagelen:, :], axis=0
     )  # Shape [V]
 
     # Compute the vms headroom as well
-    vms_a = np.array(vms)
     vm_headroom = np.sort(vms_a)[-pagelen:].sum()
 
     # Initialize the ordered itemids
@@ -61,19 +63,19 @@ def order_page_intents(
 
     # Iterate until the page is filled
     while len(ordered_itemids) < pagelen:
-        # Pick the item with the highest vms_a[i] * sum_v(es[i, v] * cwt[v])
-        # Compute the partial term sum_{v}(es[i, v] * cwt[v]) for each item
+        # Pick the item with the highest vms_a[i] * sum_v(es_a[i, v] * cwt[v])
+        # Compute the partial term sum_{v}(es_a[i, v] * cwt[v]) for each item
         # shape [N], since cwt is shape [V].
-        intent_part = np.einsum("ij,j->i", es_array, cwt)
-        # Or: intent_part = np.sum(es_array * cwt, axis=1)
+        intent_part = np.einsum("ij,j->i", es_a, cwt)  # shape [N]
+        # Or: intent_part = np.sum(es_a * cwt, axis=1)
 
         # Compute the scores for each item
-        scores = vms_a * intent_part
+        current_scores = vms_a * intent_part  # shape [N]
         if debug:
-            print(f"Scores being used to select: {scores}")
+            print(f"Scores being used to select: {current_scores}")
 
         # Select the item with the highest score
-        next_best_item = np.argmax(scores)
+        next_best_item = np.argmax(current_scores)
         if debug:
             print(f"Next best item: {next_best_item}")
         # In debug case also print the item with maximum vm score
@@ -85,24 +87,24 @@ def order_page_intents(
         ordered_itemids.append(next_best_item)
 
         # 3) Update cwt using the formula:
-        #    cwt[v] = cwt[v] * ( (es_headroom[v] - es_array[next_best_item, v]) / es_headroom[v] ) / (1 - vms_a[next_best_item]/vm_headroom)
+        #    cwt[v] = cwt[v] * ( (es_headroom[v] - es_a[next_best_item, v]) / es_headroom[v] ) / (1 - vms_a[next_best_item]/vm_headroom)
         denom = (vm_headroom - vms_a[next_best_item]) / vm_headroom
         # Floor the denom to 1e-6 to avoid dividing by zero or negative
         denom = max(denom, 1e-6)
 
         numerator = (
-            es_headroom - es_array[next_best_item, :]
+            es_headroom - es_a[next_best_item, :]
         ) / es_headroom  # shape [V]
         cwt *= numerator / denom  # vectorized update across all v
         if debug:
             print(f"Updated cwt: {cwt}")
 
         # 4) Update headrooms
-        es_headroom -= es_array[next_best_item, :]
+        es_headroom -= es_a[next_best_item, :]
         vm_headroom -= vms_a[next_best_item]
 
-        # 5) Zero out that row in es_array and vms_a so it’s not chosen again
-        es_array[next_best_item, :] = 0.0
+        # 5) Zero out that row in es_a and vms_a so it’s not chosen again
+        es_a[next_best_item, :] = 0.0
         vms_a[next_best_item] = 0.0
 
     return ordered_itemids
